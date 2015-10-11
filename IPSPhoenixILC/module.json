@@ -1,0 +1,14 @@
+{
+    "id": "{C801F62D-9869-4565-B674-F9A48683DD2C}",
+    "name": "IPSPhoenixILC",
+    "type": 3,
+    "vendor": "ILC",
+    "aliases":
+    [
+        "PhoenixILC",
+    ],  
+    "parentRequirements": [],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "ILC"
+}
