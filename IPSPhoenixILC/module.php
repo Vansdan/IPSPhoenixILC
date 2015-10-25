@@ -1,4 +1,4 @@
-<?
+<?php
     // Klassendefinition
     class IPSPhoenixILC extends IPSModule {
  
@@ -16,6 +16,8 @@
             // Diese Zeile nicht löschen.
             parent::Create();
  
+			$this->RegisterPropertyString("IP", "");
+			$this->RegisterPropertyString("vName", "");
         }
  
         // Überschreibt die intere IPS_ApplyChanges($id) Funktion
@@ -31,8 +33,30 @@
         * ABC_MeineErsteEigeneFunktion($id);
         *
         */
-        public function MeineErsteEigeneFunktion() {
-            // Selbsterstellter Code
-        }
+		private function ILC_SetValue()
+		{
+			$IP = $this->ReadPropertyString("IP");
+			$sVariable = $this->ReadPropertyString("vName");
+			$sValue = "1";
+				
+			$URL = "http://".$IP."/cgi-bin/writeVal.exe?" . $sVariable . "+" . $sValue;
+			
+			
+			$ch = curl_init();
+			
+			
+			// Get cURL resource
+			$curl = curl_init();
+			// Set some options - we are passing in a useragent too here
+			curl_setopt_array($curl, array(
+			CURLOPT_RETURNTRANSFER => 1,
+			CURLOPT_URL => $URL,
+			CURLOPT_USERAGENT => 'Codular Sample cURL Request'
+			));
+			// Send the request & save response to $resp
+			curl_exec($curl);
+			// Close request to clear up some resources
+			curl_close($curl);
+		}
     }
 ?>
