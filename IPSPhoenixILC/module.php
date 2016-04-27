@@ -33,7 +33,7 @@
         * ABC_MeineErsteEigeneFunktion($id);
         *
         */
-		private function ILC_SetValue()
+		public function SetValue()
 		{
 			$IP = $this->ReadPropertyString("IP");
 			$sVariable = $this->ReadPropertyString("vName");
