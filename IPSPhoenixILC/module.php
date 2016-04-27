@@ -1,6 +1,6 @@
 <?php
     // Klassendefinition
-    class IPSPhoenixILC extends IPSModule {
+    class PhoenixILC extends IPSModule {
  
         // Der Konstruktor des Moduls
         // Überschreibt den Standard Kontruktor von IPS
