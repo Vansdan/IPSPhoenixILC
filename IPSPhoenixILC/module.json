@@ -3,10 +3,7 @@
     "name": "PhoenixILC",
     "type": 3,
     "vendor": "ILC",
-    "aliases":
-    [
-        "PhoenixILC",
-    ],  
+    "aliases": [ "PhoenixILC" ],  
     "parentRequirements": [],
     "childRequirements": [],
     "implemented": [],
