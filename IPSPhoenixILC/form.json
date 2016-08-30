@@ -1,6 +1,6 @@
 {
   "elements": [
-    { "name": "IP ILC", "type": "ValidationTextBox", "caption": "IP" },
+    { "name": "IPILC", "type": "ValidationTextBox", "caption": "IP" },
     { "name": "Variable", "type": "ValidationTextBox", "caption": "vName" }
   ],
   "actions": [
