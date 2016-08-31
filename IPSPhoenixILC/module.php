@@ -1,99 +1,144 @@
-<?php
-    // Klassendefinition
-    class PhoenixILC extends IPSModule {
- 
-        // Der Konstruktor des Moduls
-        // Überschreibt den Standard Kontruktor von IPS
-        public function __construct($InstanceID) {
-            // Diese Zeile nicht löschen
-            parent::__construct($InstanceID);
- 
-            // Selbsterstellter Code
-        }
- 
-        // Überschreibt die interne IPS_Create($id) Funktion
-        public function Create() {
-            // Diese Zeile nicht löschen.
-            parent::Create();
- 
-			$this->RegisterPropertyString("IP", "192.168.178.152");
-			$this->RegisterPropertyString("vName", "KIND1.KI1_LICHTV");
-        }
- 
-        // Überschreibt die intere IPS_ApplyChanges($id) Funktion
-        public function ApplyChanges() {
-            // Diese Zeile nicht löschen
-            parent::ApplyChanges();
-        }
- 
-        /**
-        * Die folgenden Funktionen stehen automatisch zur Verfügung, wenn das Modul über die "Module Control" eingefügt wurden.
-        * Die Funktionen werden, mit dem selbst eingerichteten Prefix, in PHP und JSON-RPC wiefolgt zur Verfügung gestellt:
-        *
-        * ILC_SetValue($id);
-        *
-        */
-		public function SetValue()
-		{
-			$IP = $this->ReadPropertyString("IP");
-			$sVariable = $this->ReadPropertyString("vName");
-			$sValue = "1";
-				
-			$URL = "http://".$IP."/cgi-bin/writeVal.exe?" . $sVariable . "+" . $sValue;
-			
-			
-			$ch = curl_init();
-			
-			
-			// Get cURL resource
-			$curl = curl_init();
-			// Set some options - we are passing in a useragent too here
-			curl_setopt_array($curl, array(
-			CURLOPT_RETURNTRANSFER => 1,
-			CURLOPT_URL => $URL,
-			CURLOPT_USERAGENT => 'Codular Sample cURL Request'
-			));
-			// Send the request & save response to $resp
-			curl_exec($curl);
-			// Close request to clear up some resources
-			curl_close($curl);
-		}
-		
-		public function Request($path) {
-			$host = $this->ReadPropertyString('Host');
-			if ($host == '') {
-			$this->SetStatus(104);
-			return false;
-			}
-			
-			// Get cURL resource
-			$client = curl_init();
-			// Set some options - we are passing in a useragent too here
-			curl_setopt($client, CURLOPT_URL, "http://{$host}$path");
-			curl_setopt($client, CURLOPT_POST, false);
-			curl_setopt($client, CURLOPT_RETURNTRANSFER, true);
-			curl_setopt($client, CURLOPT_USERAGENT, "IPS2ILC");
-			curl_setopt($client, CURLOPT_CONNECTTIMEOUT, 5);
-			curl_setopt($client, CURLOPT_TIMEOUT, 5);
-			// Send the request & save response to $result
-			$result = curl_exec($client);
-			// Fehler-/Statusmeldungen
-			$status = curl_getinfo($client, CURLINFO_HTTP_CODE);
-			// Close request to clear up some resources
-			curl_close($client);
-				// Auswertung Fehler-/Statusbehandlung
-				if ($status == '0') {
-				$this->SetStatus(201);
-				return false;
-				} elseif ($status != '200') {
-				$this->SetStatus(201);
-				return false;
-			} 	else {
-				$this->SetStatus(102);
-				return simplexml_load_string($result);
-			}
-		}
-		
-		
+<?
+class ILCPhoenix extends IPSModule {
+  public function Create() {
+    parent::Create();
+    $this->RegisterPropertyString("Host", "");
+    $this->RegisterPropertyInteger("UpdateInterval", 15);
+  }
+  public function ApplyChanges() {
+    parent::ApplyChanges();
+    $stateId = $this->RegisterVariableBoolean("STATE", "Zustand", "~Switch", 1);
+    $this->EnableAction("STATE");
+    $serviceNameId = $this->RegisterVariableString("SERVICE_NAME", "Servicename", "", 3);
+    $serviceReferenceId = $this->RegisterVariableString("SERVICE_REFERENCE", "Servicereferenz", "", 4);
+    $this->RegisterTimer('INTERVAL', $this->ReadPropertyInteger('UpdateInterval'), 'E2_RequestData($id)');
+  }
+  protected function CleanVariablesOnInactive() {
+    SetValueBoolean($this->GetIDForIdent('STATE'), false);
+    SetValueString($this->GetIDForIdent('SERVICE_NAME'), '');
+    SetValueString($this->GetIDForIdent('SERVICE_REFERENCE'), '');
+  }
+  public function RequestAction($ident, $value) {
+    switch ($ident) {
+      case 'STATE':
+         $value = $value == 1;
+         $this->SetState($value);
+         break;
     }
+  }
+  protected function RegisterTimer($ident, $interval, $script) {
+    $id = @IPS_GetObjectIDByIdent($ident, $this->InstanceID);
+    if ($id && IPS_GetEvent($id)['EventType'] <> 1) {
+      IPS_DeleteEvent($id);
+      $id = 0;
+    }
+    if (!$id) {
+      $id = IPS_CreateEvent(1);
+      IPS_SetParent($id, $this->InstanceID);
+      IPS_SetIdent($id, $ident);
+    }
+    IPS_SetName($id, $ident);
+    IPS_SetHidden($id, true);
+    IPS_SetEventScript($id, "\$id = \$_IPS['TARGET'];\n$script;");
+    if (!IPS_EventExists($id)) throw new Exception("Ident with name $ident is used for wrong object type");
+    if (!($interval > 0)) {
+      IPS_SetEventCyclic($id, 0, 0, 0, 0, 1, 1);
+      IPS_SetEventActive($id, false);
+    } else {
+      IPS_SetEventCyclic($id, 0, 0, 0, 0, 1, $interval);
+      IPS_SetEventActive($id, true);
+    }
+  }
+  public function RequestData() {
+    $data = array();
+    // Read data
+    $this->ReadState();
+    $this->ReadService();
+    // Build hash for return
+    $data['state'] = GetValueBoolean($this->GetIDForIdent('STATE'));
+    $data['service']['name'] = GetValueString($this->GetIDForIdent('SERVICE_NAME'));
+    $data['service']['reference'] = GetValueString($this->GetIDForIdent('SERVICE_REFERENCE'));
+    return $data;
+  }
+  public function ReadState() {
+    $state = @trim(@$this->request('/web/powerstate')->e2instandby) == 'false';
+    SetValueBoolean($this->GetIDForIdent('STATE'), $state);
+    return $state;
+  }
+  public function ReadService() {
+    $serviceData = $this->request('/web/subservices');
+    if ($serviceData) {
+      $serviceName = utf8_decode((string)$serviceData->e2service->e2servicename);
+      $serviceReference = utf8_decode((string)$serviceData->e2service->e2servicereference);
+      if ($serviceName == 'N/A') $serviceName = '';
+      if ($serviceReference == 'N/A') $serviceReference = '';
+      SetValueString($this->GetIDForIdent('SERVICE_REFERENCE'), $serviceReference);
+      SetValueString($this->GetIDForIdent('SERVICE_NAME'), $serviceName);
+    }
+  }
+  public function Request($path) {
+    $host = $this->ReadPropertyString('Host');
+    if ($host == '') {
+      $this->SetStatus(104);
+      return false;
+    }
+    $client = curl_init();
+    curl_setopt($client, CURLOPT_URL, "http://{$host}$path");
+    curl_setopt($client, CURLOPT_POST, false);
+    curl_setopt($client, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($client, CURLOPT_USERAGENT, "SymconE2");
+    curl_setopt($client, CURLOPT_CONNECTTIMEOUT, 5);
+    curl_setopt($client, CURLOPT_TIMEOUT, 5);
+    $result = curl_exec($client);
+    $status = curl_getinfo($client, CURLINFO_HTTP_CODE);
+    curl_close($client);
+    if ($status == '0') {
+      $this->SetStatus(201);
+      return false;
+    } elseif ($status != '200') {
+      $this->SetStatus(201);
+      return false;
+    } else {
+      $this->SetStatus(102);
+      return simplexml_load_string($result);
+    }
+  }
+  public function GetValue($key) {
+    return GetValue($this->GetIDForIdent($key));
+  }
+  public function SetState($state) {
+    SetValueBoolean($this->GetIDForIdent('STATE'), $state);
+    $state = $state ? '4' : '5';
+    return $this->SetPowerState($state);
+  }
+  public function PowerOn() {
+    SetValueBoolean($this->GetIDForIdent('STATE'), true);
+    return $this->SetPowerState(4);
+  }
+  public function Standby() {
+    SetValueBoolean($this->GetIDForIdent('STATE'), false);
+    return $this->SetPowerState(5);
+  }
+  public function PowerOff() {
+    SetValueBoolean($this->GetIDForIdent('STATE'), false);
+    return $this->SetPowerState(1);
+  }
+  public function PowerToggle() {
+    return $this->SetPowerState(0);
+  }
+  public function Reboot() {
+    return $this->SetPowerState(2);
+  }
+  public function RestartGUI() {
+    return $this->SetPowerState(3);
+  }
+  public function SetPowerState($id) {
+    return $this->request("/web/powerstate?newstate=$id");
+  }
+  public function Zap($reference) {
+    $result = $this->request("/web/zap?sRef=$reference");
+    $this->ReadService();
+    return $result;
+  }
+}
 ?>
