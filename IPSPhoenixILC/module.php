@@ -1,5 +1,5 @@
 <?
-class ILCPhoenix extends IPSModule {
+class PhoenixILC extends IPSModule {
   public function Create() {
     parent::Create();
     $this->RegisterPropertyString("Host", "");
